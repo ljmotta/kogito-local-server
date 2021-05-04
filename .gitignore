@@ -1,3 +1,7 @@
 /build/
 **/.idea
 target/
+package/
+
+jitexecutor
+.DS_Store

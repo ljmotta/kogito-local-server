@@ -3,7 +3,7 @@ package kogito
 import (
 	"bufio"
 	"context"
-	_ "embed"
+
 	"encoding/json"
 	"fmt"
 	"log"
@@ -23,23 +23,20 @@ import (
 	"github.com/phayes/freeport"
 )
 
-//go:embed runner
-var runner []byte
-
 type Proxy struct {
-	view       *KogitoSystray
-	srv        *http.Server
-	cmd        *exec.Cmd
-	Started    bool
-	URL        string
-	Port       int
-	RunnerPort int
-	runnerPath string
+	view            *KogitoSystray
+	srv             *http.Server
+	cmd             *exec.Cmd
+	Started         bool
+	URL             string
+	Port            int
+	RunnerPort      int
+	jitexecutorPath string
 }
 
-func NewProxy(port int) *Proxy {
+func NewProxy(port int, jitexecutor []byte) *Proxy {
 	proxy := &Proxy{Started: false}
-	proxy.runnerPath = proxy.createRunner()
+	proxy.jitexecutorPath = proxy.createJitExecutor(jitexecutor)
 	proxy.Port = port
 	return proxy
 }
@@ -55,7 +52,7 @@ func (self *Proxy) Start() {
 	target, err := url.Parse(self.URL)
 	utils.Check(err)
 
-	self.cmd = exec.Command(self.runnerPath, "-Dquarkus.http.port="+runnerPort)
+	self.cmd = exec.Command(self.jitexecutorPath, "-Dquarkus.http.port="+runnerPort)
 
 	stdout, _ := self.cmd.StdoutPipe()
 
@@ -146,7 +143,7 @@ func (self *Proxy) Refresh() {
 	self.view.Refresh()
 }
 
-func (self *Proxy) createRunner() string {
+func (self *Proxy) createJitExecutor(jitexecutor []byte) string {
 	cacheDir, cacheError := os.UserCacheDir()
 	utils.Check(cacheError)
 
@@ -156,21 +153,21 @@ func (self *Proxy) createRunner() string {
 		os.Mkdir(cachePath, os.ModePerm)
 	}
 
-	runnerPath := filepath.Join(cachePath, "runner")
+	jitexecutorPath := filepath.Join(cachePath, "runner")
 
-	if _, err := os.Stat(runnerPath); err == nil {
-		os.Remove(runnerPath)
+	if _, err := os.Stat(jitexecutorPath); err == nil {
+		os.Remove(jitexecutorPath)
 	}
 
-	f, err := os.Create(runnerPath)
+	f, err := os.Create(jitexecutorPath)
 	utils.Check(err)
 
 	f.Chmod(0777)
 
-	_, err = f.Write(runner)
+	_, err = f.Write(jitexecutor)
 	utils.Check(err)
 	f.Close()
-	return runnerPath
+	return jitexecutorPath
 }
 
 func proxyHandler(proxy *httputil.ReverseProxy, cmd *exec.Cmd) func(w http.ResponseWriter, r *http.Request) {
